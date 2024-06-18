@@ -31,6 +31,11 @@ jobs:
           args: "release --clean --snapshot -f .goreleaser/mac.yml"
           version: latest
           workdir: v2
+      
+      - uses: actions/upload-artifact@v4
+        with:
+          name: naabu_mac
+          path: dist/*.zip
 
   release-test-linux:
     runs-on: ubuntu-latest
@@ -54,6 +59,11 @@ jobs:
           args: "release --clean --snapshot -f .goreleaser/linux.yml"
           version: latest
           workdir: v2
+      
+      - uses: actions/upload-artifact@v4
+        with:
+          name: naabu_linux
+          path: dist/*.zip
 
   release-test-windows:
     runs-on: windows-latest
@@ -74,3 +84,8 @@ jobs:
           args: "release --clean --snapshot -f .goreleaser/windows.yml"
           version: latest
           workdir: v2
+      
+      - uses: actions/upload-artifact@v4
+        with:
+          name: naabu_win
+          path: dist/*.zip
