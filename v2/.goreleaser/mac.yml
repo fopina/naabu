@@ -10,7 +10,7 @@ builds:
       - -s -w
     binary: naabu
     env:
-      - CGO_ENABLED=1
+      - CGO_ENABLED=0
     main: ./cmd/naabu/main.go
     goos:
       - darwin
