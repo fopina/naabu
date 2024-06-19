@@ -25,7 +25,6 @@ import (
 	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/mapcidr"
 	"github.com/projectdiscovery/naabu/v2/pkg/port"
-	"github.com/projectdiscovery/naabu/v2/pkg/privileges"
 	"github.com/projectdiscovery/naabu/v2/pkg/protocol"
 	"github.com/projectdiscovery/naabu/v2/pkg/result"
 	"github.com/projectdiscovery/naabu/v2/pkg/scan"
@@ -125,7 +124,6 @@ func NewRunner(options *Options) (*Runner, error) {
 		ProxyAuth:     options.ProxyAuth,
 		Stream:        options.Stream,
 		OnReceive:     options.OnReceive,
-		ScanType:      options.ScanType,
 	}
 
 	if scanOpts.OnReceive == nil {
@@ -250,29 +248,6 @@ func (r *Runner) RunEnumeration(pctx context.Context) error {
 	ctx, cancel := context.WithCancel(pctx)
 	defer cancel()
 
-	if privileges.IsPrivileged && r.options.ScanType == SynScan {
-		// Set values if those were specified via cli, errors are fatal
-		if r.options.SourceIP != "" {
-			err := r.SetSourceIP(r.options.SourceIP)
-			if err != nil {
-				return err
-			}
-		}
-		if r.options.Interface != "" {
-			err := r.SetInterface(r.options.Interface)
-			if err != nil {
-				return err
-			}
-		}
-		if r.options.SourcePort != "" {
-			err := r.SetSourcePort(r.options.SourcePort)
-			if err != nil {
-				return err
-			}
-		}
-		r.BackgroundWorkers(ctx)
-	}
-
 	if r.options.Stream {
 		go r.Load() //nolint
 	} else {
@@ -285,59 +260,6 @@ func (r *Runner) RunEnumeration(pctx context.Context) error {
 	// Scan workers
 	r.wgscan = sizedwaitgroup.New(r.options.Rate)
 	r.limiter = ratelimit.New(context.Background(), uint(r.options.Rate), time.Second)
-
-	shouldDiscoverHosts := r.options.shouldDiscoverHosts()
-	shouldUseRawPackets := r.options.shouldUseRawPackets()
-
-	if shouldDiscoverHosts && shouldUseRawPackets {
-		// perform host discovery
-		showHostDiscoveryInfo()
-		r.scanner.ListenHandler.Phase.Set(scan.HostDiscovery)
-		// shrinks the ips to the minimum amount of cidr
-		_, targetsV4, targetsv6, _, err := r.GetTargetIps(r.getPreprocessedIps)
-		if err != nil {
-			return err
-		}
-
-		// get excluded ips
-		excludedIPs, err := r.parseExcludedIps(r.options)
-		if err != nil {
-			return err
-		}
-
-		// store exclued ips to a map
-		excludedIPsMap := make(map[string]struct{})
-		for _, ipString := range excludedIPs {
-			excludedIPsMap[ipString] = struct{}{}
-		}
-
-		discoverCidr := func(cidr *net.IPNet) {
-			ipStream, _ := mapcidr.IPAddressesAsStream(cidr.String())
-			for ip := range ipStream {
-				// only run host discovery if the ip is not present in the excludedIPsMap
-				if _, exists := excludedIPsMap[ip]; !exists {
-					r.handleHostDiscovery(ip)
-				}
-			}
-		}
-
-		for _, target4 := range targetsV4 {
-			discoverCidr(target4)
-		}
-		for _, target6 := range targetsv6 {
-			discoverCidr(target6)
-		}
-
-		if r.options.WarmUpTime > 0 {
-			time.Sleep(time.Duration(r.options.WarmUpTime) * time.Second)
-		}
-
-		// check if we should stop here or continue with full scan
-		if r.options.OnlyHostDiscovery {
-			r.handleOutput(r.scanner.HostDiscoveryResults)
-			return nil
-		}
-	}
 
 	switch {
 	case r.options.Stream && !r.options.Passive: // stream active
@@ -354,12 +276,9 @@ func (r *Runner) RunEnumeration(pctx context.Context) error {
 				r.scanner.ScanResults.AddSkipped(target)
 				return false
 			}
-			if shouldUseRawPackets {
-				r.RawSocketEnumeration(ctx, target, port)
-			} else {
-				r.wgscan.Add()
-				go r.handleHostPort(ctx, target, port)
-			}
+
+			r.wgscan.Add()
+			go r.handleHostPort(ctx, target, port)
 			return true
 		}
 
@@ -458,9 +377,6 @@ func (r *Runner) RunEnumeration(pctx context.Context) error {
 		showNetworkCapabilities(r.options)
 
 		ipsCallback := r.getPreprocessedIps
-		if shouldDiscoverHosts && shouldUseRawPackets {
-			ipsCallback = r.getHostDiscoveryIps
-		}
 
 		// shrinks the ips to the minimum amount of cidr
 		targets, targetsV4, targetsv6, targetsWithPort, err := r.GetTargetIps(ipsCallback)
@@ -547,12 +463,10 @@ func (r *Runner) RunEnumeration(pctx context.Context) error {
 				}
 
 				// connect scan
-				if shouldUseRawPackets {
-					r.RawSocketEnumeration(ctx, ip, port)
-				} else {
-					r.wgscan.Add()
-					go r.handleHostPort(ctx, ip, port)
-				}
+
+				r.wgscan.Add()
+				go r.handleHostPort(ctx, ip, port)
+
 				if r.options.EnableProgressBar {
 					r.stats.IncrementCounter("packets", 1)
 				}
@@ -578,12 +492,10 @@ func (r *Runner) RunEnumeration(pctx context.Context) error {
 				}
 
 				// connect scan
-				if shouldUseRawPackets {
-					r.RawSocketEnumeration(ctx, ip, &portWithMetadata)
-				} else {
-					r.wgscan.Add()
-					go r.handleHostPort(ctx, ip, &portWithMetadata)
-				}
+
+				r.wgscan.Add()
+				go r.handleHostPort(ctx, ip, &portWithMetadata)
+
 				if r.options.EnableProgressBar {
 					r.stats.IncrementCounter("packets", 1)
 				}

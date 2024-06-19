@@ -5,9 +5,7 @@ import (
 	"strings"
 
 	"github.com/projectdiscovery/gologger"
-	"github.com/projectdiscovery/naabu/v2/pkg/privileges"
 	"github.com/projectdiscovery/naabu/v2/pkg/scan"
-	osutil "github.com/projectdiscovery/utils/os"
 	updateutils "github.com/projectdiscovery/utils/update"
 )
 
@@ -32,12 +30,6 @@ func showNetworkCapabilities(options *Options) {
 	var accessLevel, scanType string
 
 	switch {
-	case privileges.IsPrivileged && options.ScanType == SynScan:
-		accessLevel = "root"
-		if osutil.IsLinux() {
-			accessLevel = "CAP_NET_RAW"
-		}
-		scanType = "SYN"
 	case options.Passive:
 		accessLevel = "non root"
 		scanType = "PASSIVE"

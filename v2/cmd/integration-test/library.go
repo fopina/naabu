@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/user"
 
 	"github.com/projectdiscovery/naabu/v2/internal/testutils"
-	"github.com/projectdiscovery/naabu/v2/pkg/privileges"
 	"github.com/projectdiscovery/naabu/v2/pkg/result"
 	"github.com/projectdiscovery/naabu/v2/pkg/runner"
 )
@@ -53,11 +51,6 @@ type naabuSingleLibrary struct {
 }
 
 func (h *naabuSingleLibrary) Execute() error {
-	if h.scanType == "s" && !privileges.IsPrivileged {
-		usr, _ := user.Current()
-		return errors.New("invalid user" + usr.Name)
-	}
-
 	testFile := "test.txt"
 	err := os.WriteFile(testFile, []byte("scanme.sh"), 0644)
 	if err != nil {
@@ -71,7 +64,6 @@ func (h *naabuSingleLibrary) Execute() error {
 		HostsFile:         testFile,
 		Ports:             "80",
 		SkipHostDiscovery: true,
-		ScanType:          h.scanType,
 		OnResult: func(hr *result.HostResult) {
 			got = true
 		},
@@ -99,11 +91,6 @@ type naabuMultipleExecLibrary struct {
 }
 
 func (h *naabuMultipleExecLibrary) Execute() error {
-	if h.scanType == "s" && !privileges.IsPrivileged {
-		usr, _ := user.Current()
-		return errors.New("invalid user" + usr.Name)
-	}
-
 	testFile := "test.txt"
 	err := os.WriteFile(testFile, []byte("scanme.sh"), 0644)
 	if err != nil {
@@ -116,7 +103,6 @@ func (h *naabuMultipleExecLibrary) Execute() error {
 	options := runner.Options{
 		HostsFile:         testFile,
 		Ports:             "80",
-		ScanType:          h.scanType,
 		SkipHostDiscovery: true,
 		OnResult: func(hr *result.HostResult) {
 			got = true

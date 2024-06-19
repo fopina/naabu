@@ -135,16 +135,6 @@ func (options *Options) ValidateOptions() error {
 		return errors.New("port threshold must be between 0 and 65535")
 	}
 
-	if options.Proxy != "" && options.ScanType == SynScan {
-		gologger.Warning().Msgf("Syn Scan can't be used with socks proxy: falling back to connect scan")
-		options.ScanType = ConnectScan
-	}
-
-	if options.ScanType == SynScan && scan.PkgRouter == nil {
-		gologger.Warning().Msgf("Routing could not be determined (are you using a VPN?).falling back to connect scan")
-		options.ScanType = ConnectScan
-	}
-
 	return nil
 }
 
